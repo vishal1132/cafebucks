@@ -9,13 +9,14 @@ import (
 type Event string
 
 const (
-	orderAccepted   = "order_accepted"
-	orderReceived   = "order_received"
-	orderProcessing = "order_processing"
-	orderRejected   = "order_rejected"
-	orderFailed     = "order_failed"
-	orderDelivered  = "order_delivered"
-	orderProcessed  = "order_processed"
+	orderAccepted      = "order_accepted"
+	orderReceived      = "order_received"
+	orderProcessing    = "order_processing"
+	orderRejected      = "order_rejected"
+	orderFailed        = "order_failed"
+	orderDelivered     = "order_delivered"
+	orderProcessed     = "order_processed"
+	coffeeNotAvailable = "coffee_not_available"
 )
 
 const (
