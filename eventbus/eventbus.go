@@ -1,8 +1,10 @@
 package eventbus
 
 import (
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"context"
+
 	"github.com/rs/zerolog"
+	"github.com/segmentio/kafka-go"
 )
 
 // Event matches event types
@@ -23,7 +25,7 @@ const (
 	// OrderAccept is the event emitted by Beans Service after beans validation.
 	OrderAccept Event = orderAccepted
 
-	// OrderReceived is the event emitted by order service when the request is received .
+	// OrderReceived is the event emitted by order service when the request is received.
 	OrderReceived Event = orderReceived
 
 	// OrderProcessing is the event emitted by brewerie every 5 seconds.
@@ -44,12 +46,18 @@ const (
 
 // Publisher is the interface for the eventbus publish behaviour
 type Publisher interface {
-	Publish(e Event, eventTimestamp int64, eventID, requetID string, jsonData []byte) error
+	Publish(ctx context.Context, e Event, jsonData []byte) error
+}
+
+// Reader is the interface for the eventbus read behaviour
+type Reader interface {
+	ReadEvents(ctx context.Context) (kafka.Message, error)
 }
 
 // E is an interface to describe the entirety of eventbus.
 type E interface {
 	Publisher
+	Reader
 }
 
 // Config is the eventbus configuration
@@ -60,27 +68,60 @@ type Config struct {
 	// Logger is the logger
 	Logger *zerolog.Logger
 
+	// Kafka topic to produce event on
+	Topic string
+
 	// KafkaClient is the *kafka.AdminClient
-	KafkaClient *kafka.AdminClient
+	KafkaClient *kafka.Client
 }
 
-// EB is the eventbus struct, which satisfies Q
+// EB is the eventbus struct, which satisfies E
 type EB struct {
-	p *kafka.Producer
-	c *kafka.Consumer
+	w *kafka.Writer
+	r *kafka.Reader
 
 	l *zerolog.Logger
 }
 
-// compile time check: does *EB satisfy E interface
+// compile time check: does *EB satisfy E interface?
 var _ E = (*EB)(nil)
 
+// New returns an instance
+func New(cfg Config) (*EB, error) {
+
+	w := kafka.NewWriter(kafka.WriterConfig{
+		Brokers: []string{"localhost:9092"},
+		Topic:   cfg.Topic,
+	})
+
+	r := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{"localhost:9092"},
+		Topic:   cfg.Topic,
+	})
+
+	eb := &EB{
+		w: w,
+		r: r,
+		l: cfg.Logger,
+	}
+	return eb, nil
+}
+
 // Publish publishes to kafka topic
-func (eb *EB) Publish(e Event, eventTimestamp int64, eventID, requestID string, jsonData []byte) error {
+func (eb *EB) Publish(ctx context.Context, e Event, jsonData []byte) error {
+	// e is the event type
+	eb.w.WriteMessages(ctx, kafka.Message{
+		Key:   []byte(e),
+		Value: jsonData,
+	})
 	return nil
 }
 
-// New returns an instance
-func New() {
-
+// ReadEvents to read event
+func (eb *EB) ReadEvents(ctx context.Context) (kafka.Message, error) {
+	msg, err := eb.r.ReadMessage(ctx)
+	if err != nil {
+		return kafka.Message{}, err
+	}
+	return msg, nil
 }
